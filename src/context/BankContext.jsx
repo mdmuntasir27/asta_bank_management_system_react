@@ -1,119 +1,52 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const BankContext = createContext();
 
-const STORAGE_KEY_BALANCE = 'asta_bank_balance';
-const STORAGE_KEY_TRANSACTIONS = 'asta_bank_transactions';
-const STORAGE_KEY_USER = 'asta_bank_user';
-
-const INITIAL_ACCOUNT = {
-  bankName: 'ASTA Bank Ltd.',
-  appTitle: 'Online Banking & Account Management Portal',
-  accountHolder: 'Md. Tanvir Hasan',
-  accountNumber: 'ASTA-2026-9812401',
-  accountType: 'Premium Savings Account',
-  branch: 'Gulshan Corporate Branch, Dhaka',
-  currency: 'BDT',
-};
-
-const INITIAL_TRANSACTIONS = [
-  {
-    id: 'TXN-90214',
-    type: 'Deposit',
-    amount: 50000,
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    note: 'Initial Account Opening Deposit',
-  },
-  {
-    id: 'TXN-90215',
-    type: 'Deposit',
-    amount: 25000,
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    note: 'Monthly Salary Credit',
-  },
-  {
-    id: 'TXN-90216',
-    type: 'Withdrawal',
-    amount: 10000,
-    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    note: 'ATM Cash Withdrawal (Gulshan ATM)',
-  },
-];
-
 export function BankProvider({ children }) {
-  // Load account info from localStorage or initial state
-  const [account, setAccount] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_USER);
-      return saved ? JSON.parse(saved) : INITIAL_ACCOUNT;
-    } catch {
-      return INITIAL_ACCOUNT;
-    }
-  });
+  const { currentUser, getUserBankData, updateUserBankData } = useAuth();
 
-  // Load balance from localStorage or calculate from initial transactions
-  const [balance, setBalance] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_BALANCE);
-      if (saved !== null) return Number(saved);
-      return 65000; // 50000 + 25000 - 10000
-    } catch {
-      return 65000;
-    }
-  });
+  // Load user-specific data from the auth store
+  const userData = currentUser ? getUserBankData(currentUser.id) : null;
 
-  // Load transactions from localStorage or initial transactions
-  const [transactions, setTransactions] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-      return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-    } catch {
-      return INITIAL_TRANSACTIONS;
-    }
-  });
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState([]);
 
-  // Save to localStorage whenever balance or transactions change (Bonus Task 3)
+  // Sync state with authenticated user's data whenever user changes
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_BALANCE, balance.toString());
-    } catch (e) {
-      console.error('Failed to save balance to localStorage', e);
+    if (userData) {
+      setBalance(Number(userData.balance) || 0);
+      setTransactions(userData.transactions || []);
     }
-  }, [balance]);
+  }, [currentUser?.id]);
 
+  // Persist changes back to the auth store whenever balance or transactions change
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(transactions));
-    } catch (e) {
-      console.error('Failed to save transactions to localStorage', e);
+    if (currentUser?.id && currentUser?.role === 'user') {
+      updateUserBankData(currentUser.id, { balance, transactions });
     }
-  }, [transactions]);
+  }, [balance, transactions]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(account));
-    } catch (e) {
-      console.error('Failed to save account to localStorage', e);
-    }
-  }, [account]);
+  // Build account object from the current user session
+  const account = currentUser
+    ? {
+        bankName: 'ASTA Bank Ltd.',
+        appTitle: 'Online Banking & Account Management Portal',
+        accountHolder: currentUser.name,
+        accountNumber: currentUser.accountNumber,
+        accountType: currentUser.accountType || 'Savings Account',
+        branch: currentUser.branch || 'Main Branch, Dhaka',
+        currency: 'BDT',
+      }
+    : {
+        bankName: 'ASTA Bank Ltd.',
+        appTitle: 'Online Banking & Account Management Portal',
+        accountHolder: 'Guest',
+        accountNumber: '—',
+        accountType: '—',
+        branch: '—',
+        currency: 'BDT',
+      };
 
   // Derived totals
   const totalDeposited = transactions
@@ -204,21 +137,20 @@ export function BankProvider({ children }) {
     return `৳ ${n.toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // Reset to initial demo data
+  // Reset is no longer needed with per-user data, but keep for compatibility
   const resetToDefault = () => {
-    setBalance(65000);
-    setTransactions(INITIAL_TRANSACTIONS);
-    setAccount(INITIAL_ACCOUNT);
-    localStorage.removeItem(STORAGE_KEY_BALANCE);
-    localStorage.removeItem(STORAGE_KEY_TRANSACTIONS);
-    localStorage.removeItem(STORAGE_KEY_USER);
+    setBalance(0);
+    setTransactions([]);
+    if (currentUser?.id) {
+      updateUserBankData(currentUser.id, { balance: 0, transactions: [] });
+    }
   };
 
   return (
     <BankContext.Provider
       value={{
         account,
-        setAccount,
+        setAccount: () => {}, // No-op for compatibility; account comes from auth
         balance,
         transactions,
         totalDeposited,

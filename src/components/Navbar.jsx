@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   LayoutDashboard, 
@@ -9,12 +9,16 @@ import {
   Menu, 
   X,
   Wallet,
-  RotateCcw
+  RotateCcw,
+  LogOut
 } from 'lucide-react';
 import { useBank } from '../context/BankContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const { account, balance, formatBDT, resetToDefault } = useBank();
+  const { logout, currentUser } = useAuth();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const closeMenu = () => setMobileMenuOpen(false);
@@ -23,6 +27,11 @@ export default function Navbar() {
     if (window.confirm('Reset account balance and transactions to default demo state?')) {
       resetToDefault();
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -88,6 +97,16 @@ export default function Navbar() {
             aria-label="Reset account data"
           >
             <RotateCcw size={16} />
+          </button>
+
+          <button 
+            type="button" 
+            onClick={handleLogout} 
+            className="btn-logout-nav" 
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <LogOut size={16} />
           </button>
         </nav>
 
@@ -161,6 +180,17 @@ export default function Navbar() {
             >
               <RotateCcw size={18} />
               <span>Reset Demo Account</span>
+            </button>
+            <button 
+              type="button"
+              className="mobile-logout-button"
+              onClick={() => {
+                handleLogout();
+                closeMenu();
+              }}
+            >
+              <LogOut size={18} />
+              <span>Sign Out</span>
             </button>
           </nav>
         </div>
